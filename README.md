@@ -12,6 +12,14 @@ use, modify, or redistribute them.
 
 ## `cli-get`
 
+### Install cli-get
+
+Requires Go 1.24+ and `$GOBIN` (or `$(go env GOPATH)/bin`) on `PATH`.
+
+```sh
+go install github.com/bartdeboer/cli-releases/cmd/cli-get@latest
+```
+
 `cli-get` installs a selected published CLI from this repository without GitHub authentication:
 
 ```sh
