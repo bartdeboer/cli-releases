@@ -18,9 +18,13 @@ import (
 	"testing"
 )
 
-func fixture(t *testing.T, tamper string) (client, Options) {
+func fixture(t *testing.T, tamper string, platform ...string) (client, Options) {
 	t.Helper()
 	tool, ver := "demo", "v1.2.3"
+	goos, goarch := runtime.GOOS, runtime.GOARCH
+	if len(platform) == 2 {
+		goos, goarch = platform[0], platform[1]
+	}
 	exe := []byte("#!/bin/sh\nexit 0\n")
 	var raw bytes.Buffer
 	g := gzip.NewWriter(&raw)
@@ -30,9 +34,9 @@ func fixture(t *testing.T, tamper string) (client, Options) {
 	tw.Close()
 	g.Close()
 	archive := raw.Bytes()
-	an := fmt.Sprintf("%s_%s_%s_%s.tar.gz", tool, ver, runtime.GOOS, runtime.GOARCH)
+	an := fmt.Sprintf("%s_%s_%s_%s.tar.gz", tool, ver, goos, goarch)
 	ah := digest(archive)
-	m := Manifest{Schema: manifestSchema, Tool: tool, Version: ver, SourceCommit: "0123456789abcdef0123456789abcdef01234567", BuildTime: "2026-09-03T00:00:00Z", GoVersion: "go1.24.0", Artifacts: []Artifact{{OS: runtime.GOOS, Arch: runtime.GOARCH, File: an, Size: int64(len(archive)), SHA256: ah, Executable: tool}}}
+	m := Manifest{Schema: manifestSchema, Tool: tool, Version: ver, SourceCommit: "0123456789abcdef0123456789abcdef01234567", BuildTime: "2026-09-03T00:00:00Z", GoVersion: "go1.24.0", Artifacts: []Artifact{{OS: goos, Arch: goarch, File: an, Size: int64(len(archive)), SHA256: ah, Executable: tool}}}
 	mb, _ := json.MarshalIndent(m, "", "  ")
 	mb = append(mb, '\n')
 	lines := []string{digest(mb) + "  manifest.json", ah + "  " + an}
@@ -124,5 +128,29 @@ func TestRedirectDowngradeRejected(t *testing.T) {
 	c := client{base: source.URL, http: source.Client()}
 	if _, e := c.do(context.Background(), "GET", "/x", "application/json", 100); e == nil || reached {
 		t.Fatalf("err=%v reached=%v", e, reached)
+	}
+}
+
+func TestDarwinPlatformSelectionAndInstall(t *testing.T) {
+	for _, arch := range []string{"amd64", "arm64"} {
+		t.Run(arch, func(t *testing.T) {
+			c, o := fixture(t, "", "darwin", arch)
+			var out bytes.Buffer
+			if e := runInstallPlatform(context.Background(), o, &out, c, "darwin", arch); e != nil {
+				t.Fatal(e)
+			}
+			if _, e := os.Stat(filepath.Join(o.BinDir, o.Tool)); e != nil {
+				t.Fatal(e)
+			}
+		})
+	}
+}
+func TestWrongPlatformRejected(t *testing.T) {
+	c, o := fixture(t, "", "darwin", "arm64")
+	if e := runInstallPlatform(context.Background(), o, &bytes.Buffer{}, c, "darwin", "amd64"); e == nil {
+		t.Fatal("accepted missing platform")
+	}
+	if e := runInstallPlatform(context.Background(), o, &bytes.Buffer{}, c, "windows", "amd64"); e == nil {
+		t.Fatal("accepted unsupported OS")
 	}
 }

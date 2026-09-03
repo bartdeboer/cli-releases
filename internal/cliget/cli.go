@@ -97,8 +97,11 @@ func parse(tool string, a []string) (Options, error) {
 	return o, nil
 }
 func runInstall(ctx context.Context, o Options, out io.Writer, c client) error {
-	if runtime.GOOS != "linux" || (runtime.GOARCH != "amd64" && runtime.GOARCH != "arm64") {
-		return errors.New("M1 supports only linux/amd64 and linux/arm64")
+	return runInstallPlatform(ctx, o, out, c, runtime.GOOS, runtime.GOARCH)
+}
+func runInstallPlatform(ctx context.Context, o Options, out io.Writer, c client, goos, goarch string) error {
+	if (goos != "linux" && goos != "darwin") || (goarch != "amd64" && goarch != "arm64") {
+		return errors.New("M1 supports only linux and darwin on amd64 and arm64")
 	}
 	tag := o.Tool + "/" + o.Version
 	r, e := c.release(ctx, tag)
@@ -119,7 +122,7 @@ func runInstall(ctx context.Context, o Options, out io.Writer, c client) error {
 	if int64(len(mb)) != ma.Size || ma.Digest != "sha256:"+digest(mb) || ma.ContentType != "application/json" {
 		return errors.New("manifest provider metadata mismatch")
 	}
-	m, a, e := parseManifest(mb, o.Tool, o.Version, runtime.GOOS, runtime.GOARCH)
+	m, a, e := parseManifest(mb, o.Tool, o.Version, goos, goarch)
 	if e != nil {
 		return e
 	}
@@ -163,7 +166,7 @@ func runInstall(ctx context.Context, o Options, out io.Writer, c client) error {
 	if e != nil {
 		return e
 	}
-	res := result{APIVersion: "cli-get.output/v1", ObservedAt: time.Now().UTC(), Status: "installed", Tool: o.Tool, Version: o.Version, Platform: runtime.GOOS + "/" + runtime.GOARCH, Destination: dst, SHA256: digest(exe), Size: int64(len(exe)), Overwritten: o.Overwrite}
+	res := result{APIVersion: "cli-get.output/v1", ObservedAt: time.Now().UTC(), Status: "installed", Tool: o.Tool, Version: o.Version, Platform: goos + "/" + goarch, Destination: dst, SHA256: digest(exe), Size: int64(len(exe)), Overwritten: o.Overwrite}
 	if o.JSON {
 		enc := json.NewEncoder(out)
 		enc.SetIndent("", "  ")

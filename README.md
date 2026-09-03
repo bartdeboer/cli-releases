@@ -28,7 +28,7 @@ cli-get install go-releaser --version v0.1.0 --bin-dir "$HOME/go/bin" --json
 cli-get install go-releaser --version v0.1.0 --overwrite
 ```
 
-M1 supports Linux amd64 and arm64. The default destination is `$HOME/go/bin`. The directory must already exist, be owned by the invoking user, contain no symlink path components, and not be group/world writable. Existing tools are never replaced unless `--overwrite` is explicit.
+M1 supports Linux and macOS (Darwin) on amd64 and arm64. The default destination is `$HOME/go/bin`. The directory must already exist, be owned by the invoking user, contain no symlink path components, and not be group/world writable. Existing tools are never replaced unless `--overwrite` is explicit.
 
 The repository, API origins, release tag shape, asset names, and checksums are not configurable. The installer validates the canonical `cli-releases.manifest/v1` manifest, exact remote asset inventory, `SHA256SUMS.txt`, platform archive size and SHA-256, and an archive containing exactly one normalized executable. It downloads with fixed bounds and secure redirect rules, never invokes the downloaded program, and stages privately in the destination directory before atomic installation. It writes no workspace, authentication, or configuration state.
 
