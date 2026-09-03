@@ -38,3 +38,5 @@ A future Hostbridge alias should execute only `cli-get`, use an empty fixed argu
 Integrity metadata and archives are served from the same public release, so SHA-256 protects against corruption and inconsistent assets but does not create an independent trust root. Trust is anchored in the GitHub repository and its publisher controls. Source repositories may remain private as described above.
 
 No software license has been explicitly selected for this repository. No LICENSE file is added; public visibility alone does not grant reuse rights. Bart should choose a license before describing `cli-get` as open source or inviting redistribution.
+
+Command routing and contextual help use `github.com/bartdeboer/go-clir` v0.3.0. Security-sensitive option parsing remains owned by `cli-get`. Duplicate flags are rejected uniformly; this intentionally hardens the original M1 parser, which accepted repeated booleans and used the last repeated value.

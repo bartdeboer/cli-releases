@@ -13,6 +13,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	clir "github.com/bartdeboer/go-clir"
 )
 
 type Options struct {
@@ -21,54 +23,69 @@ type Options struct {
 }
 
 func Run(ctx context.Context, args []string, out, errOut io.Writer) error {
-	if len(args) == 0 || args[0] == "help" {
-		help(out)
-		return nil
+	r := router(out, errOut)
+	if len(args) == 0 {
+		return r.FPrintHelp(ctx, out, nil, clir.Depth(2))
 	}
-	if args[0] == "bootstrap" {
-		return bootstrap(ctx, args[1:], out, errOut)
+	if clir.IsHelpRequest(args) {
+		if err := r.FPrintHelp(ctx, out, clir.StripHelpToken(args), clir.Depth(2)); err == nil {
+			return nil
+		}
+		return r.FPrintHelp(ctx, out, nil, clir.Depth(2))
 	}
-	if args[0] != "install" {
-		return errors.New("expected install or bootstrap")
-	}
-	o, e := parse(args[1:])
-	if e != nil {
-		return e
-	}
-	return runInstall(ctx, o, out, client{})
+	return r.Run(ctx, args)
 }
-func help(w io.Writer) {
-	fmt.Fprintln(w, "cli-get install TOOL --version vX.Y.Z [--bin-dir DIR] [--overwrite] [--json]\ncli-get bootstrap [--source MODULE_ROOT]")
+func router(out, errOut io.Writer) *clir.Router {
+	r := clir.New()
+	r.Routes(func(b *clir.Builder) {
+		b.Describe("", "Install verified public CLI releases.")
+		b.Handle("install <tool>", "Install one exact tool version.", func(req *clir.Request) error {
+			o, e := parse(req.Params["tool"], req.Extra)
+			if e != nil {
+				return e
+			}
+			return runInstall(req.Context(), o, out, client{})
+		})
+		b.Handle("bootstrap", "Install cli-get from this module source.", func(req *clir.Request) error { return bootstrap(req.Context(), req.Extra, out, errOut) })
+	})
+	return r
 }
-func parse(a []string) (Options, error) {
-	var o Options
-	if len(a) < 1 {
-		return o, errors.New("install requires TOOL")
+func parse(tool string, a []string) (Options, error) {
+	o := Options{Tool: tool}
+	if strings.HasPrefix(tool, "-") || !toolRE.MatchString(tool) {
+		return o, errors.New("tool is not canonical")
 	}
-	o.Tool = a[0]
-	for i := 1; i < len(a); i++ {
-		switch a[i] {
+	seen := map[string]bool{}
+	for i := 0; i < len(a); i++ {
+		flag := a[i]
+		if seen[flag] {
+			return o, fmt.Errorf("%s specified twice", flag)
+		}
+		switch flag {
 		case "--json":
+			seen[flag] = true
 			o.JSON = true
 		case "--overwrite":
+			seen[flag] = true
 			o.Overwrite = true
 		case "--version", "--bin-dir":
-			if i+1 >= len(a) {
-				return o, errors.New(a[i] + " requires value")
+			seen[flag] = true
+			if i+1 >= len(a) || strings.HasPrefix(a[i+1], "--") {
+				return o, errors.New(flag + " requires value")
 			}
 			v := a[i+1]
 			i++
-			if a[i-1] == "--version" {
+			if flag == "--version" {
 				o.Version = v
 			} else {
 				o.BinDir = v
 			}
 		default:
-			return o, fmt.Errorf("unexpected argument %q", a[i])
+			return o, fmt.Errorf("unexpected argument %q", flag)
 		}
 	}
-	if !toolRE.MatchString(o.Tool) || !verRE.MatchString(o.Version) {
-		return o, errors.New("tool or version is not canonical")
+	if !verRE.MatchString(o.Version) {
+		return o, errors.New("version is not canonical")
 	}
 	if o.BinDir == "" {
 		home, e := os.UserHomeDir()
