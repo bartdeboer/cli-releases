@@ -46,6 +46,13 @@ func router(out, errOut io.Writer) *clir.Router {
 			}
 			return runInstall(req.Context(), o, out, client{})
 		})
+		b.Handle("readme <tool>", "Read verified documentation without installing binaries.", func(req *clir.Request) error {
+			o, err := parseReadme(req.Params["tool"], req.Extra)
+			if err != nil {
+				return err
+			}
+			return runReadme(req.Context(), o, out, client{})
+		})
 		b.Handle("bootstrap", "Install cli-get from this module source.", func(req *clir.Request) error { return bootstrap(req.Context(), req.Extra, out, errOut) })
 	})
 	return r
@@ -103,42 +110,18 @@ func runInstallPlatform(ctx context.Context, o Options, out io.Writer, c client,
 	if (goos != "linux" && goos != "darwin") || (goarch != "amd64" && goarch != "arm64") {
 		return errors.New("M1 supports only linux and darwin on amd64 and arm64")
 	}
-	tag := o.Tool + "/" + o.Version
-	r, e := c.release(ctx, tag)
+	r, m, e := verifiedMetadata(ctx, c, o.Tool, o.Version)
 	if e != nil {
 		return e
 	}
-	if r.Tag != tag || r.Draft || r.Prerelease {
-		return errors.New("release identity or state mismatch")
+	var a Artifact
+	for _, candidate := range m.Artifacts {
+		if candidate.OS == goos && candidate.Arch == goarch {
+			a = candidate
+		}
 	}
-	ma, e := findAsset(r, "manifest.json")
-	if e != nil {
-		return e
-	}
-	mb, e := c.asset(ctx, ma.ID, 1<<20)
-	if e != nil {
-		return e
-	}
-	if int64(len(mb)) != ma.Size || ma.Digest != "sha256:"+digest(mb) || ma.ContentType != "application/json" {
-		return errors.New("manifest provider metadata mismatch")
-	}
-	m, a, e := parseManifest(mb, o.Tool, o.Version, goos, goarch)
-	if e != nil {
-		return e
-	}
-	if e = validateRemoteAssets(r, m); e != nil {
-		return e
-	}
-	ca, e := findAsset(r, "SHA256SUMS.txt")
-	if e != nil {
-		return e
-	}
-	cb, e := c.asset(ctx, ca.ID, 1<<20)
-	if e != nil {
-		return e
-	}
-	if int64(len(cb)) != ca.Size || ca.Digest != "sha256:"+digest(cb) || ca.ContentType != "text/plain; charset=utf-8" || parseChecksums(cb, mb, m) != nil {
-		return errors.New("checksum asset mismatch")
+	if a.File == "" {
+		return errors.New("bundle does not contain current platform artifact")
 	}
 	aa, e := findAsset(r, a.File)
 	if e != nil {
@@ -180,14 +163,35 @@ func validateRemoteAssets(r releaseResponse, m Manifest) error {
 	for _, a := range m.Artifacts {
 		want[a.File] = a
 	}
+	for _, d := range m.Documentation {
+		want[d.File] = Artifact{File: d.File, Size: d.Size, SHA256: d.SHA256}
+	}
 	seen := map[string]bool{}
+	ids := map[int64]bool{}
 	for _, a := range r.Assets {
+		if a.ID < 1 || ids[a.ID] || a.Size < 1 {
+			return errors.New("invalid release asset identity or size")
+		}
+		ids[a.ID] = true
 		if seen[a.Name] {
 			return errors.New("duplicate release asset")
 		}
 		seen[a.Name] = true
 		if a.Name == "manifest.json" || a.Name == "SHA256SUMS.txt" {
 			continue
+		}
+		if a.Name == "README.md" && a.ContentType != "text/plain; charset=utf-8" || a.Name == "docs.zip" && a.ContentType != "application/zip" {
+			return errors.New("documentation content type mismatch")
+		}
+		expectedType := "application/gzip"
+		if strings.HasSuffix(a.Name, ".zip") {
+			expectedType = "application/zip"
+		}
+		if a.Name == "README.md" {
+			expectedType = "text/plain; charset=utf-8"
+		}
+		if a.ContentType != expectedType {
+			return errors.New("asset content type mismatch")
 		}
 		v, ok := want[a.Name]
 		if !ok || a.Size != v.Size || a.Digest != "sha256:"+v.SHA256 {
@@ -250,4 +254,46 @@ func JSONRequested(args []string) bool {
 }
 func WriteError(w io.Writer, err error) error {
 	return json.NewEncoder(w).Encode(map[string]any{"apiVersion": "cli-get.output/v1", "status": "error", "error": map[string]string{"code": "failed", "message": err.Error()}})
+}
+
+func verifiedMetadata(ctx context.Context, c client, tool, version string) (releaseResponse, Manifest, error) {
+	tag := tool + "/" + version
+	r, e := c.release(ctx, tag)
+	if e != nil {
+		return releaseResponse{}, Manifest{}, e
+	}
+	if r.Tag != tag || r.Draft || r.Prerelease {
+		return releaseResponse{}, Manifest{}, errors.New("release identity or state mismatch")
+	}
+	ma, e := findAsset(r, "manifest.json")
+	if e != nil {
+		return releaseResponse{}, Manifest{}, e
+	}
+	mb, e := c.asset(ctx, ma.ID, 1<<20)
+	if e != nil {
+		return releaseResponse{}, Manifest{}, e
+	}
+	if int64(len(mb)) != ma.Size || ma.Digest != "sha256:"+digest(mb) || ma.ContentType != "application/json" {
+		return releaseResponse{}, Manifest{}, errors.New("manifest provider metadata mismatch")
+	}
+	m, _, e := parseManifest(mb, tool, version, "", "")
+	if e != nil {
+		return releaseResponse{}, Manifest{}, e
+	}
+	if e = validateRemoteAssets(r, m); e != nil {
+		return releaseResponse{}, Manifest{}, e
+	}
+	ca, e := findAsset(r, "SHA256SUMS.txt")
+	if e != nil {
+		return releaseResponse{}, Manifest{}, e
+	}
+	cb, e := c.asset(ctx, ca.ID, 1<<20)
+	if e != nil {
+		return releaseResponse{}, Manifest{}, e
+	}
+	if int64(len(cb)) != ca.Size || ca.Digest != "sha256:"+digest(cb) || ca.ContentType != "text/plain; charset=utf-8" || parseChecksums(cb, mb, m) != nil {
+		return releaseResponse{}, Manifest{}, errors.New("checksum asset mismatch")
+	}
+
+	return r, m, nil
 }

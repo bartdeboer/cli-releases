@@ -48,3 +48,41 @@ Integrity metadata and archives are served from the same public release, so SHA-
 No software license has been explicitly selected for this repository. No LICENSE file is added; public visibility alone does not grant reuse rights. Bart should choose a license before describing `cli-get` as open source or inviting redistribution.
 
 Command routing and contextual help use `github.com/bartdeboer/go-clir` v0.3.0. Security-sensitive option parsing remains owned by `cli-get`. Duplicate flags are rejected uniformly; this intentionally hardens the original M1 parser, which accepted repeated booleans and used the last repeated value.
+
+## Read verified release documentation
+
+```text
+cli-get readme TOOL [--version vX.Y.Z]
+```
+
+With a version, retrieve that exact tool/version. Without one, scan at most
+10 pages of 100 public release records and select the highest canonical
+stable SemVer for that tool (not GitHub's repository-wide latest release).
+An incomplete scan fails and asks for an explicit version.
+
+The command validates release identity, canonical manifest, exact declared
+remote asset inventory and metadata, checksum file, and README size/SHA-256.
+It downloads only release metadata, manifest.json, SHA256SUMS.txt and README.md.
+It never downloads platform binaries or docs.zip, installs files, extracts
+archives, renders Markdown, follows documentation links, or executes code.
+UTF-8 README content is written as inert text; terminal controls and Unicode
+format/bidi controls are escaped, except ordinary newline/tab. Missing README
+is an explicit error. Markdown link text is preserved, not opened.
+
+Manifest v1 remains supported. Documentation-bearing v2 manifests retain
+all v1 fields then append `documentation: [{file, size, sha256}]`, declaring
+required README.md and optional docs.zip in that order. README is at most
+1 MiB; docs.zip is at most 32 MiB. Both are separate checksummed release
+assets. Installation validates their inventory declarations but downloads
+and installs only the selected executable archive; documentation is never
+treated as an executable. Platform archive validation remains unchanged.
+
+For offline documentation, README.md belongs beside the `docs/` tree
+contained in docs.zip. README links should use `docs/<relative-path>`.
+cli-get readme deliberately does not extract that tree or resolve links.
+
+**Trust limit:** matching same-origin checksums are not signatures or proof
+of a trustworthy publisher. Treat verified documentation as untrusted text.
+
+Shared producer fixtures are copied byte-for-byte into
+`internal/cliget/testdata/bundle-v1` and `bundle-v2`.

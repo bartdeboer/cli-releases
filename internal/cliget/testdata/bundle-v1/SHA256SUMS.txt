@@ -1,0 +1,2 @@
+0adcd1c30c0099ea50f13cf876971c572c682205ee6d5e1f4326cf3e52c83114  manifest.json
+b06eeb1fdc2ef1db26f3f09c0998db5f6866afc3c6c185217ace1b1b7c7a33fc  github-client_v0.1.0_linux_amd64.tar.gz

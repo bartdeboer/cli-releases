@@ -1,0 +1,18 @@
+{
+  "schema": "cli-releases.manifest/v1",
+  "tool": "github-client",
+  "version": "v0.1.0",
+  "sourceCommit": "0123456789abcdef0123456789abcdef01234567",
+  "buildTime": "2026-09-03T12:00:00Z",
+  "goVersion": "go1.23.0",
+  "artifacts": [
+    {
+      "os": "linux",
+      "arch": "amd64",
+      "file": "github-client_v0.1.0_linux_amd64.tar.gz",
+      "size": 120,
+      "sha256": "b06eeb1fdc2ef1db26f3f09c0998db5f6866afc3c6c185217ace1b1b7c7a33fc",
+      "executable": "github-client"
+    }
+  ]
+}

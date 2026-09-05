@@ -39,8 +39,11 @@ func parseManifest(data []byte, tool, version, goos, arch string) (Manifest, Art
 		return m, Artifact{}, errors.New("manifest is not canonical")
 	}
 	stamp, e := time.Parse(time.RFC3339, m.BuildTime)
-	if m.Schema != manifestSchema || m.Tool != tool || m.Version != version || !toolRE.MatchString(tool) || !verRE.MatchString(version) || !sourceRE.MatchString(m.SourceCommit) || e != nil || stamp.UTC().Format(time.RFC3339) != m.BuildTime || len(m.Artifacts) < 1 || len(m.Artifacts) > 32 {
+	if (m.Schema != manifestSchema && m.Schema != "cli-releases.manifest/v2") || m.Tool != tool || m.Version != version || !toolRE.MatchString(tool) || !verRE.MatchString(version) || !sourceRE.MatchString(m.SourceCommit) || e != nil || stamp.UTC().Format(time.RFC3339) != m.BuildTime || len(m.Artifacts) < 1 || len(m.Artifacts) > 32 {
 		return m, Artifact{}, errors.New("manifest identity or provenance mismatch")
+	}
+	if err := validateDocumentation(m); err != nil {
+		return m, Artifact{}, err
 	}
 	last := ""
 	var selected Artifact
@@ -60,7 +63,7 @@ func parseManifest(data []byte, tool, version, goos, arch string) (Manifest, Art
 			found++
 		}
 	}
-	if found != 1 {
+	if goos != "" && found != 1 {
 		return m, Artifact{}, errors.New("bundle does not contain exactly one current platform artifact")
 	}
 	return m, selected, nil
@@ -70,6 +73,9 @@ func parseChecksums(data, manifest []byte, m Manifest) error {
 	lines := []string{hex.EncodeToString(sum[:]) + "  manifest.json"}
 	for _, a := range m.Artifacts {
 		lines = append(lines, a.SHA256+"  "+a.File)
+	}
+	for _, doc := range m.Documentation {
+		lines = append(lines, doc.SHA256+"  "+doc.File)
 	}
 	sort.Strings(lines)
 	if string(data) != strings.Join(lines, "\n")+"\n" {

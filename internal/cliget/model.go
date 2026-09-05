@@ -5,13 +5,14 @@ import "time"
 const manifestSchema = "cli-releases.manifest/v1"
 
 type Manifest struct {
-	Schema       string     `json:"schema"`
-	Tool         string     `json:"tool"`
-	Version      string     `json:"version"`
-	SourceCommit string     `json:"sourceCommit"`
-	BuildTime    string     `json:"buildTime"`
-	GoVersion    string     `json:"goVersion"`
-	Artifacts    []Artifact `json:"artifacts"`
+	Schema        string          `json:"schema"`
+	Tool          string          `json:"tool"`
+	Version       string          `json:"version"`
+	SourceCommit  string          `json:"sourceCommit"`
+	BuildTime     string          `json:"buildTime"`
+	GoVersion     string          `json:"goVersion"`
+	Artifacts     []Artifact      `json:"artifacts"`
+	Documentation []Documentation `json:"documentation,omitempty"`
 }
 type Artifact struct {
 	OS         string `json:"os"`
@@ -45,4 +46,10 @@ type releaseAsset struct {
 	Size        int64  `json:"size"`
 	Digest      string `json:"digest"`
 	ContentType string `json:"content_type"`
+}
+
+type Documentation struct {
+	File   string `json:"file"`
+	Size   int64  `json:"size"`
+	SHA256 string `json:"sha256"`
 }

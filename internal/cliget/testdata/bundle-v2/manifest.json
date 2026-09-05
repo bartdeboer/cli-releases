@@ -1,0 +1,30 @@
+{
+  "schema": "cli-releases.manifest/v2",
+  "tool": "example",
+  "version": "v1.2.3",
+  "sourceCommit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "buildTime": "2026-09-05T00:00:00Z",
+  "goVersion": "go1.24.13",
+  "artifacts": [
+    {
+      "os": "linux",
+      "arch": "amd64",
+      "file": "example_v1.2.3_linux_amd64.tar.gz",
+      "size": 117,
+      "sha256": "373fae43d5d088eb78a701698ea392d1b8eabc5f9e52bb22b3afd23a418d344c",
+      "executable": "example"
+    }
+  ],
+  "documentation": [
+    {
+      "file": "README.md",
+      "size": 39,
+      "sha256": "5855aa376c7d47e51321dd91898c925c894cc096fb6a1fd2468a5e2fb465e5b3"
+    },
+    {
+      "file": "docs.zip",
+      "size": 217,
+      "sha256": "83945f0264961c9557f615c576e549549da4ce74a7f218c7f74f5bdf0dd31164"
+    }
+  ]
+}
